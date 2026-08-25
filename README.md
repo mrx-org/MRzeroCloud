@@ -44,6 +44,7 @@ Examples:
 
 - `examples/load_gre_sim_recon_nufft.py` — this modal quick start (`examples/gre.seq`, `reco_pynufft`)
 - `examples/load_gre_sim_recon_fft.py` — same `gre.seq` and modal backend, iFFT recon
+- `examples/load_gre_sim_recon_bifti.py` — same seq/backend, bifti phantom by id (`user/numerical_brain_cropped_bifti_2`)
 
 ## Modal HTTP backend
 
@@ -140,7 +141,7 @@ See [MRzerocloud_m](../MRzerocloud_m) for a MATLAB package with the same modal H
 
 - `simulate()` defaults to the **modal** HTTP backend (Fly ToolAPI: `backend="mr0sim"`)
 - Install from GitHub: `pip install git+https://github.com/mrx-org/MRzeroCloud.git`
-- Examples: `examples/load_gre_sim_recon_nufft.py` (`reco_pynufft`) and `examples/load_gre_sim_recon_fft.py` (iFFT), bundled `examples/gre.seq`
+- Examples: `examples/load_gre_sim_recon_nufft.py` (`reco_pynufft`), `examples/load_gre_sim_recon_fft.py` (iFFT), and `examples/load_gre_sim_recon_bifti.py` (bifti id), bundled `examples/gre.seq`
 - `mr0.reco_adjoint` matches the MRzeroCore API (dense adjoint DFT)
 
 ### 1.0.1
