@@ -15,8 +15,6 @@ import MRzeroCloud as mr0
 EXAMPLE_DIR = Path(__file__).resolve().parent
 SEQ_PATH = EXAMPLE_DIR / "gre.seq"
 PHANTOM_BIFTI = "user/numerical_brain_cropped_bifti_2"
-#PHANTOM_BIFTI = "breast-phantom/breast_7T_slice_paper"
-
 
 def main() -> None:
     if not SEQ_PATH.is_file():
