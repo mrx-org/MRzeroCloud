@@ -5,7 +5,7 @@ from importlib.metadata import PackageNotFoundError, version as _pkg_version
 from . import api
 from . import util
 from .exceptions import SimulationAborted
-from .reconstruction import reco_pynufft
+from .reconstruction import reco_adjoint, reco_pynufft
 from .simulation import SimulationJob
 from .util import (
     imshow,
@@ -34,6 +34,7 @@ __all__ = [
     "get_version",
     "imshow",
     "load_phantom",
+    "reco_adjoint",
     "reco_pynufft",
     "simulate",
     "simulate_async",

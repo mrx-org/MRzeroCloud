@@ -59,6 +59,124 @@ def _normalize_fov(FOV, resolution: tuple[int, int, int]) -> tuple[float, float,
     return (fov[0], fov[1], fov[2])
 
 
+def _as_numpy(array) -> np.ndarray:
+    if hasattr(array, "detach"):
+        array = array.detach().cpu().numpy()
+    return np.asarray(array)
+
+
+def _signal_coils(signal) -> np.ndarray:
+    """``(samples, coils)`` complex, matching MRzeroCore ``reco_adjoint``."""
+    signal = _as_numpy(signal)
+    if not np.iscomplexobj(signal) and signal.ndim >= 2 and signal.shape[-1] == 2:
+        signal = signal[..., 0] + 1j * signal[..., 1]
+    signal = np.asarray(signal, dtype=np.complex128)
+    if signal.ndim == 1:
+        return signal.reshape(-1, 1)
+    return np.reshape(signal, (signal.shape[0], -1))
+
+
+def reco_adjoint(
+    signal,
+    kspace,
+    resolution: tuple[int, int, int] | float | None = None,
+    FOV: tuple[float, float, float] | float | None = None,
+    return_multicoil: bool = False,
+):
+    """Adjoint DFT reconstruction — same API as MRzeroCore ``reco_adjoint``.
+
+    Builds a dense backward encoding (``signal.T @ exp(2πi k·r)``). Slower and
+    more memory-heavy than FFT/NUFFT, but works for any trajectory.
+
+    Parameters
+    ----------
+    signal:
+        Complex samples, shape ``(sample_count,)`` or ``(sample_count, coil_count)``.
+    kspace:
+        Trajectory ``(sample_count, 2|3|4)`` — only the first three columns are used.
+    resolution:
+        ``(nx, ny, nz)``, or ``None`` / a float scale to derive from *kspace*.
+    FOV:
+        ``(fov_x, fov_y, fov_z)`` in metres, or ``None`` / a float scale to derive
+        from *kspace* (cartesian).
+    return_multicoil:
+        If ``True``, return one image per coil instead of RSS combine.
+    """
+    signal_np = _signal_coils(signal)
+    kspace = _as_numpy(kspace).astype(np.float64, copy=False)
+    if kspace.ndim != 2 or kspace.shape[1] < 2:
+        raise ValueError("kspace trajectory must have shape (N, 2|3|4)")
+    if kspace.shape[1] == 2:
+        kspace = np.column_stack([kspace, np.zeros(kspace.shape[0])])
+    kxyz = kspace[:, :3]
+    n = min(signal_np.shape[0], kxyz.shape[0])
+    signal_np = signal_np[:n]
+    kxyz = kxyz[:n]
+
+    res_scale = 1.0
+    fov_scale = 1.0
+    if isinstance(resolution, float):
+        res_scale = resolution
+        resolution = None
+    if isinstance(FOV, float):
+        fov_scale = FOV
+        FOV = None
+
+    if FOV is None:
+        def _fov_axis(t: np.ndarray) -> float:
+            t = t[t > 1e-3]
+            return 1.0 if t.size == 0 else float(t.min())
+
+        tmp = np.abs(kxyz)
+        FOV = (
+            fov_scale / _fov_axis(tmp[:, 0]),
+            fov_scale / _fov_axis(tmp[:, 1]),
+            fov_scale / _fov_axis(tmp[:, 2]),
+        )
+        print(f"Detected FOV: {FOV}")
+    else:
+        FOV = tuple(float(v) for v in FOV)
+        if len(FOV) == 2:
+            FOV = (FOV[0], FOV[1], 1.0)
+
+    if resolution is None:
+        def _res_axis(scale: float, fov: float, t: np.ndarray) -> int:
+            tmp = np.round(scale * (fov * (t.max() - t.min()) + 1))
+            return max(int(tmp), 1)
+
+        resolution = (
+            _res_axis(res_scale, FOV[0], kxyz[:, 0]),
+            _res_axis(res_scale, FOV[1], kxyz[:, 1]),
+            _res_axis(res_scale, FOV[2], kxyz[:, 2]),
+        )
+        print(f"Detected resolution: {resolution}")
+    else:
+        resolution = tuple(int(v) for v in resolution)
+        if len(resolution) == 2:
+            resolution = (resolution[0], resolution[1], 1)
+
+    pos_x, pos_y, pos_z = np.meshgrid(
+        FOV[0] * np.fft.fftshift(np.fft.fftfreq(resolution[0])),
+        FOV[1] * np.fft.fftshift(np.fft.fftfreq(resolution[1])),
+        FOV[2] * np.fft.fftshift(np.fft.fftfreq(resolution[2])),
+        indexing="ij",
+    )
+    voxel_pos = np.stack(
+        [pos_x.ravel(), pos_y.ravel(), pos_z.ravel()],
+        axis=0,
+    )
+    phase = kxyz @ voxel_pos
+    rot = np.exp(2j * np.pi * phase)
+    ncoils = signal_np.shape[1]
+    reco = signal_np.T @ rot
+
+    if return_multicoil:
+        return reco.reshape((ncoils, *resolution))
+    if ncoils == 1:
+        return reco.reshape(resolution)
+    return np.sqrt((np.abs(reco) ** 2).sum(0)).reshape(resolution)
+
+
 def reco_pynufft(
     signal,
     kspace,
