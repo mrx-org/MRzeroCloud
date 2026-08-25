@@ -179,7 +179,7 @@ class _SimulateAPI:
         Parameters
         ----------
         backend:
-            ``"mr0sim"`` (default Fly ToolAPI chain) or ``"modal"`` (HTTP job API).
+            ``"modal"`` (default HTTP job API) or ``"mr0sim"`` (Fly ToolAPI chain).
         worker:
             Modal worker tier for ``backend="modal"`` (``cpu``, ``t4``, ``a10g``, ``a100``).
         use_gpu:

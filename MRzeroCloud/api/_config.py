@@ -14,7 +14,7 @@ _DEFAULT_AFFINE = [
 ]
 _DEFAULT_PHANTOM_MATRIX = [64, 64, 1]
 _DEFAULT_SUBJECT = 4
-_DEFAULT_BACKEND = "mr0sim"
+_DEFAULT_BACKEND = "modal"
 
 # Modal HTTP defaults: cached bifti phantom on its native NIfTI grid. The
 # gateway reslices server-side and requires res+affine on every bifti job.
@@ -75,7 +75,7 @@ def _seq_matrix(seq) -> list[int] | None:
 
 
 def default_config(seq=None) -> dict[str, Any]:
-    """Standalone defaults: BrainWeb subject 4, single axial (transversal) slice."""
+    """Fly ToolAPI defaults: BrainWeb subject 4, single axial (transversal) slice."""
     res = _seq_matrix(seq) or list(_DEFAULT_PHANTOM_MATRIX)  # [nx, ny, 1]
     recon_matrix = res[:]
     assert res[2] == 1, "default phantom must be a single 2D slice (res_z=1)"
@@ -83,7 +83,7 @@ def default_config(seq=None) -> dict[str, Any]:
         "phantom": _DEFAULT_SUBJECT,
         "res": res,
         "affine": [row[:] for row in _DEFAULT_AFFINE],
-        "backend": _DEFAULT_BACKEND,
+        "backend": "mr0sim",
         "recon_matrix": recon_matrix,
     }
 

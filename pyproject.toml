@@ -1,6 +1,6 @@
 [project]
 name = "MRzeroCloud"
-version = "1.0.1"
+version = "1.0.2"
 description = "Cloud MRI simulation with an MRzeroCore-compatible Python API"
 readme = "README.md"
 requires-python = ">=3.9"

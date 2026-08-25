@@ -1,12 +1,17 @@
 # MRzeroCloud
 
-Cloud MRI simulation with an [MRzeroCore](https://mrsources.github.io/MRzero-Core/)-compatible Python API. Swap the import and run the same workflow against Fly ToolAPI backends or the Modal HTTP pipeline.
+**Version 1.0.2**
+
+Cloud MRI simulation with an [MRzeroCore](https://mrsources.github.io/MRzero-Core/)-compatible Python API. Swap the import and run the same workflow against Fly ToolAPI backends or the Modal HTTP pipeline. `mr0.simulate()` defaults to the **modal** HTTP backend (same as MATLAB).
 
 ## Install
 
 ```bash
+# from GitHub: https://github.com/mrx-org/MRzeroCloud
+pip install git+https://github.com/mrx-org/MRzeroCloud.git
+# from PyPI
 pip install MRzeroCloud
-# or from this repo:
+# from a local clone
 pip install -e .
 ```
 
@@ -16,29 +21,29 @@ The `modal` backend runs `pulseq_rs` server-side, so `.seq` files are validated 
 before upload: Pulseq version **≤ 1.5.0**, **≤ 20 000 lines**. Signal follows the
 MRzeroCore 1.0 sign convention, so Cartesian recon uses **ifft**, not fft.
 
-## Quick start (Fly ToolAPI)
+## Quick start (Modal API)
 
 ```python
 import MRzeroCloud as mr0
-import pypulseq as pp
 
-seq = build_your_sequence()   # PyPulseq Sequence
-seq.write("out.seq")          # standard PyPulseq I/O
-
-obj = mr0.load_phantom(4, res=(64, 64, 1))
-signal, ktraj_adc = mr0.simulate(seq, obj, accuracy=1e-5)
+signal, ktraj_adc = mr0.simulate("gre.seq")  # default modal backend
 
 image = mr0.reco_pynufft(
     signal,
     ktraj_adc,
     resolution=(64, 64, 1),
-    FOV=(0.22, 0.22, 0.003),
+    FOV=(0.256, 0.256, 0.003),
 )
 mr0.imshow(image)
 ```
 
 `simulate`, `simulate_async`, `load_phantom`, `imshow`, and `stop_simulation` are also
 available under `mr0.util` for backwards compatibility.
+
+Examples:
+
+- `examples/load_gre_sim_recon_nufft.py` — this modal quick start (`examples/gre.seq`, `reco_pynufft`)
+- `examples/load_gre_sim_recon_fft.py` — same `gre.seq` and modal backend, iFFT recon
 
 ## Modal HTTP backend
 
@@ -50,15 +55,15 @@ The `modal` backend talks to [tool-mr0sim-modal_http](../tool-mr0sim-modal_http)
 python local_app.py   # http://127.0.0.1:8080
 ```
 
-The default gateway is already configured, so no setup is needed:
+`simulate()` defaults to this backend. The default gateway is already configured, so no setup is needed:
 
 ```python
 import MRzeroCloud as mr0
 
-signal, ktraj = mr0.simulate("gre.seq", backend="modal")
+signal, ktraj = mr0.simulate("gre.seq")
 
 # optional GPU tier (cpu, t4, a10g, a100); default t4
-signal, ktraj = mr0.simulate("gre.seq", backend="modal", worker="a10g")
+signal, ktraj = mr0.simulate("gre.seq", worker="a10g")
 ```
 
 **Local dev or your own deployment** — point the backend somewhere else:
@@ -93,7 +98,7 @@ signal, ktraj = mr0.simulate(seq, obj, backend=config["backend"])
 image = mr0.reco_pynufft(signal, ktraj, resolution=config["recon_matrix"], FOV=fov)
 ```
 
-Set `"backend": "modal"` in protocol metadata to use the HTTP pipeline.
+Set `"backend": "mr0sim"` in protocol metadata to use the Fly ToolAPI chain. The default is ``modal``.
 
 ## Configuration
 
@@ -128,3 +133,21 @@ See [MRzerocloud_m](../MRzerocloud_m) for a MATLAB package with the same modal H
 | Simulate | Local Bloch graph | Fly ToolAPI or Modal HTTP |
 | Phantom | `VoxelGridPhantom` / `.mat` | phantomlib (Fly) or bifti registry (modal) |
 | Recon | `mr0.reco_adjoint` | `mr0.reco_pynufft` (portable to Core later) |
+
+## Release notes
+
+### 1.0.2
+
+- `simulate()` defaults to the **modal** HTTP backend (Fly ToolAPI: `backend="mr0sim"`)
+- Install from GitHub: `pip install git+https://github.com/mrx-org/MRzeroCloud.git`
+- Examples: `examples/load_gre_sim_recon_nufft.py` (`reco_pynufft`) and `examples/load_gre_sim_recon_fft.py` (iFFT), bundled `examples/gre.seq`
+
+### 1.0.1
+
+Package version tracks the MRzeroCore version on mr0-cloud.
+
+- Fly ToolAPI (`mr0sim`) and Modal HTTP simulation
+- `simulate`, `simulate.start` / `simulate_async`, `load_phantom`, `reco_pynufft`, `imshow`
+- Modal defaults: cached bifti `user/numerical_brain_cropped_bifti` on the **t4** worker
+- Pre-flight `.seq` checks: Pulseq version **≤ 1.5.0**, file **≤ 20 000 lines**
+- Cartesian recon uses **ifft** for the MRzeroCore 1.0 signal sign convention
