@@ -1,0 +1,67 @@
+name: Publish to PyPI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - pyproject.toml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/MRzeroCloud
+    permissions:
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install build tools
+        run: pip install build packaging requests
+
+      - name: Publish only if version is newer than PyPI
+        id: check
+        run: |
+          python <<'PY'
+          import os
+          import pathlib
+          import tomllib
+
+          import requests
+          from packaging.version import Version
+
+          data = tomllib.loads(pathlib.Path("pyproject.toml").read_text())
+          name = data["project"]["name"]
+          local = Version(data["project"]["version"])
+
+          response = requests.get(f"https://pypi.org/pypi/{name}/json", timeout=30)
+          if response.status_code == 404:
+              newer = True
+              print(f"not on PyPI yet; will publish {local}")
+          else:
+              response.raise_for_status()
+              remote = Version(response.json()["info"]["version"])
+              newer = local > remote
+              print(f"local={local} pypi={remote} publish={newer}")
+
+          with open(os.environ["GITHUB_OUTPUT"], "a") as fh:
+              fh.write(f"should_publish={'true' if newer else 'false'}\n")
+          PY
+
+      - name: Build
+        if: steps.check.outputs.should_publish == 'true'
+        run: python -m build
+
+      - name: Upload to PyPI
+        if: steps.check.outputs.should_publish == 'true'
+        uses: pypa/gh-action-pypi-publish@release/v1

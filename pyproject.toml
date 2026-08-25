@@ -1,0 +1,29 @@
+[project]
+name = "MRzeroCloud"
+version = "1.0.1"
+description = "Cloud MRI simulation with an MRzeroCore-compatible Python API"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "matplotlib",
+    "numpy",
+    "pynufft",
+    "requests>=2.32.0",
+    "toolapi>=0.5.3",
+]
+
+[project.urls]
+Homepage = "https://github.com/mrx-org/MRzeroCloud"
+Repository = "https://github.com/mrx-org/MRzeroCloud"
+Issues = "https://github.com/mrx-org/MRzeroCloud/issues"
+
+[project.optional-dependencies]
+dev = ["pytest"]
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["MRzeroCloud*"]
