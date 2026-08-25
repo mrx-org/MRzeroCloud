@@ -132,7 +132,7 @@ See [MRzerocloud_m](../MRzerocloud_m) for a MATLAB package with the same modal H
 | Import | `import MRzeroCore as mr0` | `import MRzeroCloud as mr0` |
 | Simulate | Local Bloch graph | Fly ToolAPI or Modal HTTP |
 | Phantom | `VoxelGridPhantom` / `.mat` | phantomlib (Fly) or bifti registry (modal) |
-| Recon | `mr0.reco_adjoint` | `mr0.reco_pynufft` (portable to Core later) |
+| Recon | `mr0.reco_adjoint` | `mr0.reco_adjoint` (same API); `mr0.reco_pynufft` for NUFFT |
 
 ## Release notes
 
@@ -141,6 +141,7 @@ See [MRzerocloud_m](../MRzerocloud_m) for a MATLAB package with the same modal H
 - `simulate()` defaults to the **modal** HTTP backend (Fly ToolAPI: `backend="mr0sim"`)
 - Install from GitHub: `pip install git+https://github.com/mrx-org/MRzeroCloud.git`
 - Examples: `examples/load_gre_sim_recon_nufft.py` (`reco_pynufft`) and `examples/load_gre_sim_recon_fft.py` (iFFT), bundled `examples/gre.seq`
+- `mr0.reco_adjoint` matches the MRzeroCore API (dense adjoint DFT)
 
 ### 1.0.1
 
