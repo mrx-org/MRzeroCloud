@@ -151,13 +151,36 @@ def _poll_job(
     raise TimeoutError(f"modal job {job_id} did not finish within {_POLL_TIMEOUT_S}s")
 
 
-def _fetch_result(base_url: str, job_id: str) -> tuple[np.ndarray, np.ndarray]:
-    resp = requests.get(
-        f"{base_url.rstrip('/')}/v1/jobs/{job_id}/result",
-        timeout=120,
-    )
+def _http_get_bytes(url: str, timeout: float) -> bytes:
+    """GET binary body. Uses sync XHR in Pyodide so NPZ bytes are not corrupted."""
+    try:
+        from js import XMLHttpRequest
+    except ImportError:
+        XMLHttpRequest = None  # type: ignore[misc, assignment]
+    if XMLHttpRequest is not None:
+        xhr = XMLHttpRequest.new()
+        xhr.open("GET", url, False)
+        # Document-context sync XHR cannot set responseType or timeout.
+        xhr.overrideMimeType("text/plain; charset=x-user-defined")
+        xhr.send(None)
+        if int(xhr.status) < 200 or int(xhr.status) >= 300:
+            raise RuntimeError(f"GET {url} failed: HTTP {xhr.status}")
+        return bytes(ord(c) & 0xFF for c in str(xhr.responseText))
+
+    resp = requests.get(url, timeout=timeout)
     resp.raise_for_status()
-    data = np.load(io.BytesIO(resp.content))
+    return resp.content
+
+
+def _fetch_result(base_url: str, job_id: str) -> tuple[np.ndarray, np.ndarray]:
+    url = f"{base_url.rstrip('/')}/v1/jobs/{job_id}/result"
+    payload = _http_get_bytes(url, timeout=120)
+    if len(payload) < 4 or payload[:2] != b"PK":
+        preview = payload[:240].decode("utf-8", errors="replace")
+        raise RuntimeError(
+            f"result is not NPZ ({len(payload)} bytes from {url}): {preview}"
+        )
+    data = np.load(io.BytesIO(payload))
     signal = np.asarray(data["signal"], dtype=np.complex64).ravel()
     ktraj = np.asarray(data["ktraj"], dtype=np.float32)
     return signal, ktraj

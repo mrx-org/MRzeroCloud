@@ -45,6 +45,7 @@ Examples:
 - `examples/load_gre_sim_recon_nufft.py` — this quick start (`examples/gre.seq`, `reco_pynufft`)
 - `examples/load_gre_sim_recon_fft.py` — same `gre.seq`, iFFT recon
 - `examples/load_gre_sim_recon_bifti.py` — bifti phantom by id (`user/numerical_brain_cropped_bifti_2`)
+- `examples/load_gre_sim_recon_pyodide.html` — same GRE in the browser (Pyodide)
 
 ## Modal HTTP
 
