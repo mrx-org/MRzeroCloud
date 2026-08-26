@@ -22,8 +22,7 @@
 <body>
   <h1>MRzeroCloud GRE (Pyodide)</h1>
   <p class="hint">
-    Serve the package over HTTP, then hard-refresh this page (Ctrl+F5).
-    Loads MRzeroCloud from the files next to this example (no pip/git),
+    Loads MRzeroCloud in the browser (Pyodide, no pip/git),
     runs <code>gre.seq</code> on the default modal backend, and shows
     <code>reco_pynufft</code> magnitude and phase.
   </p>
@@ -35,8 +34,11 @@
   </div>
 
   <script>
-    const SEQ_FALLBACK =
-      "https://raw.githubusercontent.com/mrx-org/MRzeroCloud/main/examples/gre.seq";
+    const REPO_FALLBACKS = [
+      "https://cdn.jsdelivr.net/gh/mrx-org/MRzeroCloud@main/",
+      "https://raw.githubusercontent.com/mrx-org/MRzeroCloud/main/",
+    ];
+    const SEQ_FALLBACK = REPO_FALLBACKS.map((root) => root + "examples/gre.seq");
     const PACKAGE_FILES = [
       "MRzeroCloud/__init__.py",
       "MRzeroCloud/exceptions.py",
@@ -66,11 +68,11 @@
     }
 
     function packageRoots() {
-      const examplesDir = new URL(".", window.location.href);
+      const here = new URL(".", window.location.href);
       return [
-        new URL("../", examplesDir).href,
-        examplesDir.href,
-        new URL("../../", examplesDir).href,
+        here.href,
+        new URL("../", here).href,
+        ...REPO_FALLBACKS,
       ];
     }
 
@@ -97,7 +99,12 @@
     }
 
     async function loadSeqText() {
-      const urls = [new URL("gre.seq", window.location.href).href, SEQ_FALLBACK];
+      const here = new URL(".", window.location.href);
+      const urls = [
+        new URL("examples/gre.seq", here).href,
+        new URL("gre.seq", here).href,
+        ...SEQ_FALLBACK,
+      ];
       let lastError;
       for (const url of urls) {
         try {
