@@ -1,4 +1,4 @@
-"""MR-zero Cloud: MRzeroCore-compatible simulation over ToolAPI."""
+"""MR-zero Cloud: MRzeroCore-compatible simulation over modal HTTP."""
 
 from importlib.metadata import PackageNotFoundError, version as _pkg_version
 
@@ -9,7 +9,6 @@ from .reconstruction import reco_adjoint, reco_pynufft
 from .simulation import SimulationJob
 from .util import (
     imshow,
-    load_phantom,
     simulate,
     simulate_async,
     stop_simulation,
@@ -33,7 +32,6 @@ __all__ = [
     "api",
     "get_version",
     "imshow",
-    "load_phantom",
     "reco_adjoint",
     "reco_pynufft",
     "simulate",

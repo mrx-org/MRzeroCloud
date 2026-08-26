@@ -1,6 +1,6 @@
 [project]
 name = "MRzeroCloud"
-version = "1.0.2"
+version = "1.0.3"
 description = "Cloud MRI simulation with an MRzeroCore-compatible Python API"
 readme = "README.md"
 requires-python = ">=3.9"
@@ -9,7 +9,6 @@ dependencies = [
     "numpy",
     "pynufft",
     "requests>=2.32.0",
-    "toolapi>=0.5.3",
 ]
 
 [project.urls]

@@ -18,7 +18,7 @@ from ._config import (
     DEFAULT_MODAL_WORKER,
     modal_worker_from_config,
     phantom_id_from_config,
-    phantomlib_params_from_config,
+    phantom_grid_from_config,
 )
 from ._pulseq import check_pulseq_version
 from ._tools import _resolve_on_message, get_modal_url
@@ -55,7 +55,7 @@ def _job_options(
     exact_trajectories: bool,
     worker: str | None = None,
 ) -> dict[str, Any]:
-    params = phantomlib_params_from_config(config)
+    params = phantom_grid_from_config(config)
     opts: dict[str, Any] = {
         "exact_trajectories": exact_trajectories,
         "accuracy": accuracy,

@@ -1,31 +1,14 @@
-"""ToolAPI endpoints and low-level call helpers."""
+"""Modal HTTP endpoint and progress / abort helpers."""
 
 from __future__ import annotations
 
 import contextvars
 import threading
 from contextlib import contextmanager
-from time import perf_counter
 from typing import Callable, Iterator
 
-import toolapi
-
-from ..exceptions import SimulationAborted
-
 DEFAULT_URLS = {
-    "conseq": "wss://tool-conseq.fly.dev/tool",
-    "trajex": "wss://tool-trajex.fly.dev/tool",
-    "phantomlib": "wss://tool-phantomlib-flyio.fly.dev/tool",
-    "rapisim": "wss://tool-rapisim.fly.dev/tool",
-    "mr0sim": "wss://tool-mr0sim.fly.dev/tool",
     "modal": "https://mzaiss--tool-mr0sim-modal-http-gateway.modal.run",
-}
-
-SIM_BACKENDS = {
-    "rapisim": "rapisim",
-    "mr0sim": "mr0sim",
-    "mr0": "mr0sim",
-    "modal": "modal",
 }
 
 _urls = dict(DEFAULT_URLS)
@@ -43,11 +26,11 @@ def configure(
     on_message: Callable[[str], bool] | None = None,
     verbose: bool | None = None,
 ) -> None:
-    """Override default tool URLs and progress reporting.
+    """Override the modal URL and progress reporting.
 
     Only explicitly supplied arguments are applied; url overrides accumulate
-    across calls. Use ``urls={"modal": "https://…"}`` to point the ``modal``
-    backend at a different tool-mr0sim-modal_http endpoint.
+    across calls. Use ``urls={"modal": "https://…"}`` to point at a different
+    tool-mr0sim-modal_http endpoint.
     """
     global _urls, _on_message, _verbose
     if urls:
@@ -59,7 +42,7 @@ def configure(
 
 
 def reset_configuration() -> None:
-    """Restore the built-in URLs, progress callback, and verbosity."""
+    """Restore the built-in URL, progress callback, and verbosity."""
     global _urls, _on_message, _verbose
     _urls = dict(DEFAULT_URLS)
     _on_message = None
@@ -68,7 +51,7 @@ def reset_configuration() -> None:
 
 @contextmanager
 def abort_context(abort: threading.Event | None) -> Iterator[None]:
-    """Bind a per-job abort event for nested :func:`call_tool` invocations."""
+    """Bind a per-job abort event checked by progress callbacks."""
     token = _abort_ctx.set(abort)
     try:
         yield
@@ -106,37 +89,6 @@ def _resolve_on_message() -> Callable[[str], bool]:
     return on_message
 
 
-def _is_abort_error(exc: BaseException) -> bool:
-    msg = str(exc).lower()
-    return "onmessageabort" in msg or "client requested abort" in msg
-
-
-def call_tool(name: str, **kwargs):
-    global _progress_line_width
-    _progress_line_width = 0
-    url = _urls[name]
-    start = perf_counter()
-    try:
-        result = toolapi.call(url, kwargs, _resolve_on_message())
-    except Exception as exc:
-        if _is_abort_error(exc):
-            raise SimulationAborted("cloud simulation aborted by client") from exc
-        raise
-    if _verbose:
-        print(f"\n --- {url} done ({perf_counter() - start:.2f} s) ---", flush=True)
-    _progress_line_width = 0
-    return result
-
-
 def get_modal_url() -> str:
-    """Base URL for the ``modal`` HTTP simulation backend."""
+    """Base URL for the modal HTTP simulation backend."""
     return _urls["modal"]
-
-
-def assert_tool_ok(label: str, result):
-    from ._convert import tool_error_message
-
-    msg = tool_error_message(result)
-    if msg:
-        raise RuntimeError(f"{label} failed: {msg}")
-    return result

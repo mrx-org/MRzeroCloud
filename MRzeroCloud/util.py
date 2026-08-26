@@ -4,82 +4,13 @@ from __future__ import annotations
 
 import asyncio
 import threading
-import warnings
-from typing import Sequence
 
 import numpy as np
 
 from .api import pipeline
-from .api._config import (
-    DEFAULT_BACKEND,
-    backend_from_config,
-    default_config,
-    default_modal_config,
-    optional_config,
-    phantom_id_from_config,
-    phantomlib_params_from_config,
-)
+from .api._config import optional_config
 from .api._tools import abort_context, stop_simulation
 from .simulation import SimulationJob
-
-_accuracy_warned = False
-
-
-def _normalize_affine(affine):
-    if affine is None:
-        return None
-    if isinstance(affine[0], (list, tuple)):
-        return [[float(v) for v in row] for row in affine]
-    flat = [float(v) for v in affine]
-    if len(flat) >= 12:
-        return [
-            flat[0:4],
-            flat[4:8],
-            flat[8:12],
-        ]
-    raise ValueError("affine must be 3x4 matrix or flat 12-element list")
-
-
-def load_phantom(
-    id=None,
-    *,
-    affine: Sequence[float] | Sequence[Sequence[float]] | None = None,
-    res: Sequence[int] | None = None,
-    config: dict | None = None,
-):
-    """Load a BrainWeb phantom via phantomlib.
-
-    Parameters
-    ----------
-    id:
-        BrainWeb subject id (``int``) or ``phantomlib_subject4_...`` string.
-    affine:
-        3×4 FOV/slice placement matrix, or flat 12-element list.
-    res:
-        Phantom grid size ``(res_x, res_y, res_z)``.
-    config:
-        Optional flat config dict from :func:`mr0.api.load_config`.
-
-    Returns
-    -------
-    object
-        Cloud phantom handle for :func:`simulate`.
-    """
-    if config is not None and id is None:
-        id = config.get("phantom")
-    if config is not None:
-        params = phantomlib_params_from_config(config)
-    else:
-        params = phantomlib_params_from_config(optional_config())
-    if id is None:
-        id = phantom_id_from_config(config)
-    if affine is None:
-        affine = params["affine"]
-    else:
-        affine = _normalize_affine(affine)
-    if res is None:
-        res = (params["res_x"], params["res_y"], params["res_z"])
-    return pipeline.load_phantom_toolapi(id, affine, res)
 
 
 def _simulate_impl(
@@ -97,54 +28,24 @@ def _simulate_impl(
     exact_trajectories: bool | None = None,
     worker: str | None = None,
 ):
-    global _accuracy_warned
+    del phantom, t1, t2, min_mag
     config = config if config is not None else optional_config()
 
     if backend is None:
-        backend = backend_from_config(config) if config is not None else DEFAULT_BACKEND
-
-    is_modal = str(backend).lower() == "modal"
-
-    if config is None:
-        seq_def = seq if hasattr(seq, "get_definition") else None
-        config = default_modal_config(seq_def) if is_modal else default_config(seq_def)
-
-    if accuracy != 1e-5 and not _accuracy_warned and not is_modal:
-        warnings.warn(
-            "MRzeroCloud simulate() accepts accuracy for API parity; "
-            "Fly simulation tools do not expose this parameter yet.",
-            stacklevel=3,
+        backend = "modal"
+    if str(backend).lower() != "modal":
+        raise ValueError(
+            f"Unknown simulation backend {backend!r}; only 'modal' is supported"
         )
-        _accuracy_warned = True
 
-    if is_modal:
-        kdata, ktraj = pipeline.run(
-            backend,
-            None,
-            None,
-            config=config,
-            seq=seq,
-            accuracy=accuracy,
-            t1=t1,
-            t2=t2,
-            min_mag=min_mag,
-            use_gpu=use_gpu,
-            exact_trajectories=exact_trajectories,
-            worker=worker,
-        )
-    else:
-        if phantom is None:
-            phantom = load_phantom(config=config)
-        seq0 = pipeline.load_seq(seq)
-        kdata, ktraj = pipeline.run(
-            backend,
-            seq0,
-            phantom,
-            config=config,
-            t1=t1,
-            t2=t2,
-            min_mag=min_mag,
-        )
+    kdata, ktraj = pipeline.run(
+        seq,
+        config=config,
+        accuracy=accuracy,
+        use_gpu=use_gpu,
+        exact_trajectories=exact_trajectories,
+        worker=worker,
+    )
 
     if noise_level:
         noise = noise_level * (
@@ -174,18 +75,18 @@ class _SimulateAPI:
         exact_trajectories: bool | None = None,
         worker: str | None = None,
     ):
-        """Simulate a Pulseq sequence in the cloud (blocking).
+        """Simulate a Pulseq sequence over modal HTTP (blocking).
 
         Parameters
         ----------
         backend:
-            ``"modal"`` (default HTTP job API) or ``"mr0sim"`` (Fly ToolAPI chain).
+            Only ``"modal"`` is supported (the default).
         worker:
-            Modal worker tier for ``backend="modal"`` (``cpu``, ``t4``, ``a10g``, ``a100``).
+            Modal worker tier (``cpu``, ``t4``, ``a10g``, ``a100``).
         use_gpu:
-            When ``worker`` is omitted, maps to a GPU tier on the modal backend.
+            When ``worker`` is omitted, maps to a GPU tier.
         exact_trajectories:
-            Use exact k-space trajectories on the modal backend (default ``True``).
+            Use exact k-space trajectories (default ``True``).
 
         Returns
         -------

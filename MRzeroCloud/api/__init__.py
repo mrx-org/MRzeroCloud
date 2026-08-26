@@ -1,4 +1,4 @@
-"""AnyField protocol metadata and internal pipeline helpers."""
+"""AnyField protocol metadata and modal HTTP helpers."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ from ._config import (
     optional_config,
     parse_metadata,
     phantom_id_from_config,
-    phantomlib_params_from_config,
+    phantom_grid_from_config,
     recon_matrix_from_config,
     register_metadata,
 )
@@ -45,7 +45,7 @@ __all__ = [
     "optional_config",
     "parse_metadata",
     "phantom_id_from_config",
-    "phantomlib_params_from_config",
+    "phantom_grid_from_config",
     "recon_matrix_from_config",
     "register_metadata",
     "recon_matrix_from_summary",

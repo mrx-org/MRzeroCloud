@@ -74,20 +74,6 @@ def _seq_matrix(seq) -> list[int] | None:
     return None
 
 
-def default_config(seq=None) -> dict[str, Any]:
-    """Fly ToolAPI defaults: BrainWeb subject 4, single axial (transversal) slice."""
-    res = _seq_matrix(seq) or list(_DEFAULT_PHANTOM_MATRIX)  # [nx, ny, 1]
-    recon_matrix = res[:]
-    assert res[2] == 1, "default phantom must be a single 2D slice (res_z=1)"
-    return {
-        "phantom": _DEFAULT_SUBJECT,
-        "res": res,
-        "affine": [row[:] for row in _DEFAULT_AFFINE],
-        "backend": "mr0sim",
-        "recon_matrix": recon_matrix,
-    }
-
-
 def default_modal_config(seq=None) -> dict[str, Any]:
     """Standalone defaults for the ``modal`` backend (matches MATLAB ``mr0.defaultConfig``).
 
@@ -103,6 +89,11 @@ def default_modal_config(seq=None) -> dict[str, Any]:
         "exact_trajectories": True,
         "recon_matrix": _seq_matrix(seq) or list(_DEFAULT_PHANTOM_MATRIX),
     }
+
+
+def default_config(seq=None) -> dict[str, Any]:
+    """Same as :func:`default_modal_config` (MATLAB ``mr0.defaultConfig``)."""
+    return default_modal_config(seq)
 
 
 def load_config(source: str | dict[str, Any] | None = None) -> dict[str, Any]:
@@ -158,12 +149,12 @@ def load_config(source: str | dict[str, Any] | None = None) -> dict[str, Any]:
     }
 
 
-def phantomlib_params_from_config(config: dict[str, Any] | None = None) -> dict[str, Any]:
-    """Extract phantomlib ``affine`` and resolution from a config dict."""
+def phantom_grid_from_config(config: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Extract bifti ``affine`` and resolution from a config dict."""
     if config is None:
         config = optional_config()
     if config is None:
-        config = default_config()
+        config = default_modal_config()
     elif "affine" not in config or "res" not in config:
         config = load_config(config)
     res = config["res"]
@@ -215,7 +206,7 @@ def modal_exact_trajectories_from_config(config: dict[str, Any] | None = None) -
 
 
 def default_phantom_res(config: dict[str, Any] | None = None) -> tuple[int, int, int]:
-    params = phantomlib_params_from_config(config)
+    params = phantom_grid_from_config(config)
     return (params["res_x"], params["res_y"], params["res_z"])
 
 

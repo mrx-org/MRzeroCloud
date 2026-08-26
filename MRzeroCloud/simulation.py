@@ -27,7 +27,7 @@ class SimulationJob:
         return self._done.is_set()
 
     def stop(self) -> None:
-        """Request abort on the next ToolAPI progress message."""
+        """Request abort on the next modal progress message."""
         self._abort.set()
 
     def cancel_after(self, seconds: float) -> None:
