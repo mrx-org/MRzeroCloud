@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Cache-Control" content="no-cache">
+  <title>MRzeroCloud GRE in Pyodide</title>
+  <style>
+    :root { --bg:#0a0e1a; --panel:#141b2d; --text:#e8ecff; --muted:#a9b3da; --border:rgba(255,255,255,.1); --accent:#3b82f6; }
+    html,body { margin:0; background:var(--bg); color:var(--text); font:14px/1.4 system-ui,Segoe UI,Roboto,sans-serif; }
+    body { max-width:720px; margin:0 auto; padding:16px; }
+    h1 { font-size:1.25rem; font-weight:600; color:var(--accent); }
+    .hint,code { color:var(--muted); font-size:.9rem; }
+    code { background:var(--panel); padding:.1em .35em; border-radius:4px; }
+    #status { white-space:pre-wrap; background:var(--panel); border:1px solid var(--border); padding:.75rem 1rem; border-radius:8px; min-height:3rem; }
+    #error { color:#f87171; white-space:pre-wrap; }
+    #plots { display:flex; flex-wrap:wrap; gap:12px; }
+    img { width:320px; max-width:100%; image-rendering:pixelated; background:#000; border:1px solid var(--border); border-radius:8px; }
+  </style>
+  <script src="https://cdn.jsdelivr.net/pyodide/v0.27.7/full/pyodide.js"></script>
+</head>
+<body>
+  <h1>MRzeroCloud GRE (Pyodide)</h1>
+  <p class="hint">
+    Serve the package over HTTP, then hard-refresh this page (Ctrl+F5).
+    Loads MRzeroCloud from the files next to this example (no pip/git),
+    runs <code>gre.seq</code> on the default modal backend, and shows
+    <code>reco_pynufft</code> magnitude and phase.
+  </p>
+  <p id="status">Loading Pyodide…</p>
+  <p id="error"></p>
+  <div id="plots">
+    <img id="recon" alt="magnitude" hidden>
+    <img id="phase" alt="phase" hidden>
+  </div>
+
+  <script>
+    const SEQ_FALLBACK =
+      "https://raw.githubusercontent.com/mrx-org/MRzeroCloud/main/examples/gre.seq";
+    const PACKAGE_FILES = [
+      "MRzeroCloud/__init__.py",
+      "MRzeroCloud/exceptions.py",
+      "MRzeroCloud/reconstruction.py",
+      "MRzeroCloud/simulation.py",
+      "MRzeroCloud/util.py",
+      "MRzeroCloud/api/__init__.py",
+      "MRzeroCloud/api/_config.py",
+      "MRzeroCloud/api/_io.py",
+      "MRzeroCloud/api/_modal_http.py",
+      "MRzeroCloud/api/_pulseq.py",
+      "MRzeroCloud/api/_recon.py",
+      "MRzeroCloud/api/_tools.py",
+      "MRzeroCloud/api/pipeline.py",
+    ];
+
+    function setStatus(text) {
+      document.getElementById("status").textContent = text;
+    }
+
+    function errText(err) {
+      if (err == null) return String(err);
+      if (typeof err === "string") return err;
+      if (err.message) return err.message;
+      if (err.code || err.errno) return `${err.code || ""} ${err.errno || ""}`.trim();
+      try { return JSON.stringify(err); } catch { return String(err); }
+    }
+
+    function packageRoots() {
+      const examplesDir = new URL(".", window.location.href);
+      return [
+        new URL("../", examplesDir).href,
+        examplesDir.href,
+        new URL("../../", examplesDir).href,
+      ];
+    }
+
+    function mkdirParents(fs, filePath) {
+      const parts = filePath.split("/").filter(Boolean).slice(0, -1);
+      let cur = "";
+      for (const part of parts) {
+        cur = cur ? `${cur}/${part}` : part;
+        try {
+          fs.mkdir(cur);
+        } catch (err) {
+          if (err && (err.errno === 17 || err.errno === 20 || err.code === "EEXIST")) {
+            continue;
+          }
+          throw err;
+        }
+      }
+    }
+
+    async function fetchText(url) {
+      const resp = await fetch(url, { cache: "no-store" });
+      if (!resp.ok) throw new Error(`${url}: ${resp.status}`);
+      return await resp.text();
+    }
+
+    async function loadSeqText() {
+      const urls = [new URL("gre.seq", window.location.href).href, SEQ_FALLBACK];
+      let lastError;
+      for (const url of urls) {
+        try {
+          return await fetchText(url);
+        } catch (err) {
+          lastError = err;
+        }
+      }
+      throw lastError;
+    }
+
+    async function installMRzeroCloud(pyodide) {
+      const errors = [];
+      for (const root of packageRoots()) {
+        const probe = new URL("MRzeroCloud/__init__.py", root).href;
+        try {
+          const files = [];
+          for (const rel of PACKAGE_FILES) {
+            files.push({ rel, text: await fetchText(new URL(rel, root).href) });
+          }
+          for (const { rel, text } of files) {
+            mkdirParents(pyodide.FS, rel);
+            pyodide.FS.writeFile(rel, text);
+          }
+          setStatus("Loaded MRzeroCloud from " + root);
+          return;
+        } catch (err) {
+          errors.push(`${probe}: ${errText(err)}`);
+        }
+      }
+      throw new Error(
+        "Could not fetch the MRzeroCloud package from this server.\n" +
+          "Serve the folder that contains both examples/ and MRzeroCloud/.\n" +
+          errors.join("\n")
+      );
+    }
+
+    async function main() {
+      const pyodide = await loadPyodide();
+      setStatus("Loading numpy / Pillow / scipy / micropip…");
+      await pyodide.loadPackage(["numpy", "Pillow", "scipy", "micropip"]);
+
+      setStatus("Installing requests and pynufft…");
+      await pyodide.runPythonAsync(`
+import micropip
+await micropip.install(["requests", "pynufft"])
+      `);
+
+      setStatus("Loading MRzeroCloud from this server…");
+      await installMRzeroCloud(pyodide);
+
+      setStatus("Fetching gre.seq…");
+      const seqText = await loadSeqText();
+      pyodide.FS.writeFile("gre.seq", seqText);
+
+      setStatus("Simulating GRE on modal (page may pause while polling)…");
+      await pyodide.runPythonAsync(`
+from js import document
+import io, base64, sys
+sys.path.insert(0, ".")
+import numpy as np
+from PIL import Image
+import MRzeroCloud as mr0
+
+def on_message(msg):
+    document.getElementById("status").textContent = str(msg)
+    return True
+
+mr0.api.configure(on_message=on_message, verbose=False)
+signal, ktraj = mr0.simulate("gre.seq")
+image = mr0.reco_pynufft(
+    signal,
+    ktraj,
+    resolution=(64, 64, 1),
+    FOV=(0.256, 0.256, 0.003),
+)
+vol = np.squeeze(image)
+mag = np.abs(vol).T[::-1]
+phase = np.angle(vol).T[::-1]
+
+def to_png(arr, lo, hi):
+    pix = np.asarray(255.0 * (arr - lo) / ((hi - lo) or 1.0), dtype=np.uint8)
+    buf = io.BytesIO()
+    Image.fromarray(pix, mode="L").save(buf, format="PNG")
+    return "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode("ascii")
+
+for el_id, src in (
+    ("recon", to_png(mag, 0.0, float(mag.max()) or 1.0)),
+    ("phase", to_png(phase, -np.pi, np.pi)),
+):
+    el = document.getElementById(el_id)
+    el.src = src
+    el.hidden = False
+document.getElementById("status").textContent = (
+    f"done: {signal.size} samples, image {mag.shape[0]}x{mag.shape[1]}"
+)
+      `);
+    }
+
+    main().catch((err) => {
+      document.getElementById("error").textContent = String(err);
+      setStatus("Failed.");
+    });
+  </script>
+</body>
+</html>
