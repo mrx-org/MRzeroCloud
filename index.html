@@ -12,6 +12,10 @@
     h1 { font-size:1.25rem; font-weight:600; color:var(--accent); }
     .hint,code { color:var(--muted); font-size:.9rem; }
     code { background:var(--panel); padding:.1em .35em; border-radius:4px; }
+    #bar { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:0 0 12px; }
+    button,input { color:var(--text); background:var(--panel); border:1px solid var(--border); border-radius:6px; padding:.4rem .7rem; }
+    button { background:var(--accent); border:0; cursor:pointer; }
+    button:disabled,input:disabled { opacity:.45; cursor:default; }
     #status { white-space:pre-wrap; background:var(--panel); border:1px solid var(--border); padding:.75rem 1rem; border-radius:8px; min-height:3rem; }
     #error { color:#f87171; white-space:pre-wrap; }
     #plots { display:flex; flex-wrap:wrap; gap:12px; }
@@ -23,9 +27,14 @@
   <h1>MRzeroCloud GRE (Pyodide)</h1>
   <p class="hint">
     Loads MRzeroCloud in the browser (Pyodide, no pip/git),
-    runs <code>gre.seq</code> on the default modal backend, and shows
+    runs a Pulseq <code>.seq</code> on the default modal backend
+    (<code>128×128</code>, FOV 256 mm) and shows
     <code>reco_pynufft</code> magnitude and phase.
   </p>
+  <div id="bar">
+    <button id="gre" type="button" disabled>GRE example</button>
+    <input id="upload" type="file" accept=".seq,text/plain" disabled>
+  </div>
   <p id="status">Loading Pyodide…</p>
   <p id="error"></p>
   <div id="plots">
@@ -116,6 +125,94 @@
       throw lastError;
     }
 
+    let pyodide = null;
+    let busy = false;
+
+    function setBusy(on) {
+      busy = on;
+      const ready = !!pyodide;
+      document.getElementById("gre").disabled = !ready || on;
+      document.getElementById("upload").disabled = !ready || on;
+    }
+
+    async function runSeq(seqText, label) {
+      if (!pyodide || busy) return;
+      setBusy(true);
+      document.getElementById("error").textContent = "";
+      try {
+        pyodide.FS.writeFile("input.seq", seqText);
+        setStatus("Simulating " + label + " on modal (page may pause while polling)…");
+        await pyodide.runPythonAsync(`
+from js import document
+import io, base64, sys
+sys.path.insert(0, ".")
+import numpy as np
+from PIL import Image
+import MRzeroCloud as mr0
+
+def on_message(msg):
+    document.getElementById("status").textContent = str(msg)
+    return True
+
+mr0.api.configure(on_message=on_message, verbose=False)
+signal, ktraj = mr0.simulate("input.seq")
+image = mr0.reco_pynufft(
+    signal,
+    ktraj,
+    resolution=(128, 128, 1),
+    FOV=(0.256, 0.256, 0.003),
+)
+vol = np.squeeze(image)
+mag = np.abs(vol).T[::-1]
+phase = np.angle(vol).T[::-1]
+
+def to_png(arr, lo, hi):
+    pix = np.asarray(255.0 * (arr - lo) / ((hi - lo) or 1.0), dtype=np.uint8)
+    buf = io.BytesIO()
+    Image.fromarray(pix, mode="L").save(buf, format="PNG")
+    return "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode("ascii")
+
+for el_id, src in (
+    ("recon", to_png(mag, 0.0, float(mag.max()) or 1.0)),
+    ("phase", to_png(phase, -np.pi, np.pi)),
+):
+    el = document.getElementById(el_id)
+    el.src = src
+    el.hidden = False
+document.getElementById("status").textContent = (
+    f"done: {signal.size} samples, image {mag.shape[0]}x{mag.shape[1]}"
+)
+        `);
+      } catch (err) {
+        document.getElementById("error").textContent = String(err);
+        setStatus("Failed.");
+      } finally {
+        setBusy(false);
+      }
+    }
+
+    document.getElementById("gre").onclick = async () => {
+      try {
+        setStatus("Fetching gre.seq…");
+        await runSeq(await loadSeqText(), "gre.seq");
+      } catch (err) {
+        document.getElementById("error").textContent = String(err);
+        setStatus("Failed.");
+      }
+    };
+
+    document.getElementById("upload").onchange = async (ev) => {
+      const file = ev.target.files && ev.target.files[0];
+      ev.target.value = "";
+      if (!file) return;
+      try {
+        await runSeq(await file.text(), file.name);
+      } catch (err) {
+        document.getElementById("error").textContent = String(err);
+        setStatus("Failed.");
+      }
+    };
+
     async function installMRzeroCloud(pyodide) {
       const errors = [];
       for (const root of packageRoots()) {
@@ -143,7 +240,7 @@
     }
 
     async function main() {
-      const pyodide = await loadPyodide();
+      pyodide = await loadPyodide();
       setStatus("Loading numpy / Pillow / scipy / micropip…");
       await pyodide.loadPackage(["numpy", "Pillow", "scipy", "micropip"]);
 
@@ -155,53 +252,8 @@ await micropip.install(["requests", "pynufft"])
 
       setStatus("Loading MRzeroCloud from this server…");
       await installMRzeroCloud(pyodide);
-
-      setStatus("Fetching gre.seq…");
-      const seqText = await loadSeqText();
-      pyodide.FS.writeFile("gre.seq", seqText);
-
-      setStatus("Simulating GRE on modal (page may pause while polling)…");
-      await pyodide.runPythonAsync(`
-from js import document
-import io, base64, sys
-sys.path.insert(0, ".")
-import numpy as np
-from PIL import Image
-import MRzeroCloud as mr0
-
-def on_message(msg):
-    document.getElementById("status").textContent = str(msg)
-    return True
-
-mr0.api.configure(on_message=on_message, verbose=False)
-signal, ktraj = mr0.simulate("gre.seq")
-image = mr0.reco_pynufft(
-    signal,
-    ktraj,
-    resolution=(64, 64, 1),
-    FOV=(0.256, 0.256, 0.003),
-)
-vol = np.squeeze(image)
-mag = np.abs(vol).T[::-1]
-phase = np.angle(vol).T[::-1]
-
-def to_png(arr, lo, hi):
-    pix = np.asarray(255.0 * (arr - lo) / ((hi - lo) or 1.0), dtype=np.uint8)
-    buf = io.BytesIO()
-    Image.fromarray(pix, mode="L").save(buf, format="PNG")
-    return "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode("ascii")
-
-for el_id, src in (
-    ("recon", to_png(mag, 0.0, float(mag.max()) or 1.0)),
-    ("phase", to_png(phase, -np.pi, np.pi)),
-):
-    el = document.getElementById(el_id)
-    el.src = src
-    el.hidden = False
-document.getElementById("status").textContent = (
-    f"done: {signal.size} samples, image {mag.shape[0]}x{mag.shape[1]}"
-)
-      `);
+      setBusy(false);
+      setStatus("Ready — upload a .seq or run the GRE example.");
     }
 
     main().catch((err) => {
