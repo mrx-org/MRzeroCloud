@@ -18,7 +18,7 @@ def run(
     seq,
     *,
     config: dict | None = None,
-    accuracy: float = 1e-5,
+    accuracy: float = 1e-3,
     use_gpu: bool | None = None,
     exact_trajectories: bool | None = None,
     worker: str | None = None,

@@ -17,7 +17,7 @@ def _simulate_impl(
     seq,
     phantom=None,
     *,
-    accuracy: float = 1e-5,
+    accuracy: float = 1e-3,
     noise_level: float | None = None,
     backend: str | None = None,
     config: dict | None = None,
@@ -64,7 +64,7 @@ class _SimulateAPI:
         seq,
         phantom=None,
         *,
-        accuracy: float = 1e-5,
+        accuracy: float = 1e-3,
         noise_level: float | None = None,
         backend: str | None = None,
         config: dict | None = None,
@@ -79,6 +79,10 @@ class _SimulateAPI:
 
         Parameters
         ----------
+        accuracy:
+            Main-pass precision, as in ``MRzeroCore.util.simulate``. Sent as
+            ``min_emitted_signal`` and ``min_latent_signal``. Default ``1e-3``.
+            Prepass stays ``min_state_mag=1e-5`` and ``max_state_count=2000``.
         backend:
             Only ``"modal"`` is supported (the default).
         worker:
@@ -115,7 +119,7 @@ class _SimulateAPI:
         seq,
         phantom=None,
         *,
-        accuracy: float = 1e-5,
+        accuracy: float = 1e-3,
         noise_level: float | None = None,
         backend: str | None = None,
         config: dict | None = None,
@@ -158,7 +162,7 @@ async def simulate_async(
     seq,
     phantom=None,
     *,
-    accuracy: float = 1e-5,
+    accuracy: float = 1e-3,
     noise_level: float | None = None,
     backend: str | None = None,
     config: dict | None = None,

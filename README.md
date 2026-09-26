@@ -1,6 +1,6 @@
 # MRzeroCloud
 
-**Version 1.0.3**
+**Version 1.0.4**
 
 Cloud MRI simulation with an [MRzeroCore](https://mrsources.github.io/MRzero-Core/)-compatible Python API. `mr0.simulate()` talks to the **modal** HTTP backend (same as MATLAB).
 
@@ -51,13 +51,7 @@ Examples:
 
 Upload a `.seq` file, poll a job, download `(signal, ktraj)` as NPZ.
 
-**Local dev** (from `tool-mr0sim-modal_http`):
-
-```bash
-python local_app.py   # http://127.0.0.1:8080
-```
-
-The default gateway is already configured, so no setup is needed:
+The default gateway is already configured, so no setup is needed. `simulate()` runs MRzeroCore `execute_graph` there.
 
 ```python
 import MRzeroCloud as mr0
@@ -67,6 +61,8 @@ signal, ktraj = mr0.simulate("gre.seq")
 # optional GPU tier (cpu, t4, a10g, a100); default t4
 signal, ktraj = mr0.simulate("gre.seq", worker="a10g")
 ```
+
+`accuracy` is a client argument (default `1e-3`), the same knob as `MRzeroCore.util.simulate`. It is not a Modal job field. The client sends `min_emitted_signal` and `min_latent_signal` equal to `accuracy`, and a fixed prepass of `min_state_mag=1e-5`, `max_state_count=2000`.
 
 **Local dev or your own deployment** — point the backend somewhere else:
 
@@ -131,6 +127,10 @@ See [MRzerocloud_m](../MRzerocloud_m) for a MATLAB package with the same modal H
 | Recon | `mr0.reco_adjoint` | `mr0.reco_adjoint` (same API); `mr0.reco_pynufft` for NUFFT |
 
 ## Release notes
+
+### 1.0.4
+
+- `accuracy` stays on `simulate()` (default `1e-3`, matching `MRzeroCore.util.simulate`). It is no longer sent as a job field. The client sends `min_emitted_signal` and `min_latent_signal` from `accuracy`, plus a fixed prepass (`min_state_mag=1e-5`, `max_state_count=2000`).
 
 ### 1.0.3
 

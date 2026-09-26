@@ -58,7 +58,12 @@ def _job_options(
     params = phantom_grid_from_config(config)
     opts: dict[str, Any] = {
         "exact_trajectories": exact_trajectories,
-        "accuracy": accuracy,
+        # ``accuracy`` stays a MRzeroCloud argument. Same split as
+        # MRzeroCore.util.simulate: prepass is fixed, main pass follows accuracy.
+        "min_state_mag": 1e-5,
+        "min_emitted_signal": accuracy,
+        "min_latent_signal": accuracy,
+        "max_state_count": 2000,
         "phantom": {
             "type": "bifti",
             "id": _phantom_bifti_id(config),
@@ -70,6 +75,11 @@ def _job_options(
         opts["worker"] = worker
     else:
         opts["use_gpu"] = use_gpu
+    # Forward pass on the Modal worker. ``config["backend"]`` stays ``"modal"``
+    # (the transport). ``sim_backend`` is ``mrzero`` or ``pdgv2``.
+    sim_backend = config.get("sim_backend")
+    if sim_backend:
+        opts["backend"] = str(sim_backend)
     return opts
 
 
@@ -190,7 +200,7 @@ def run_modal_http(
     seq,
     *,
     config: dict[str, Any] | None = None,
-    accuracy: float = 1e-5,
+    accuracy: float = 1e-3,
     use_gpu: bool = True,
     exact_trajectories: bool = True,
     base_url: str | None = None,
