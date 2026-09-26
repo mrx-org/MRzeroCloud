@@ -10,3 +10,4 @@ venv/
 .env
 .DS_Store
 examples/out.seq
+test/results/
