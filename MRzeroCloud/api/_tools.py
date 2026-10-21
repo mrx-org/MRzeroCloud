@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import contextvars
 import os
+import sys
 import threading
 from contextlib import contextmanager
 from typing import Callable, Iterator
@@ -112,9 +113,11 @@ def get_mcp_token() -> str:
     """MRX API key from :func:`configure` or ``MRX_API_KEY``."""
     token = _mcp_token or os.environ.get("MRX_API_KEY")
     if not token:
-        raise RuntimeError(
-            "the mcp backend needs an MRX API key: create one at "
-            f"{get_mcp_url()}/keys, then set MRX_API_KEY or call "
-            "mr0.api.configure(mcp_token='mrx_...')"
+        print(
+            "MRzeroCloud: the mcp backend needs an MRX API key.\n"
+            f"  Create one at {get_mcp_url()}/keys, then set MRX_API_KEY\n"
+            "  or call mr0.api.configure(mcp_token='mrx_...').",
+            file=sys.stderr,
         )
+        raise RuntimeError(f"no MRX API key (create one at {get_mcp_url()}/keys)")
     return token

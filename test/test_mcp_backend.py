@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import io
 import json
 import unittest
@@ -133,9 +134,11 @@ class McpBackendTests(unittest.TestCase):
     def test_missing_token(self):
         api.reset_configuration()
         api.configure(urls={"mcp": BASE}, verbose=False)
-        with patch.dict("os.environ", {}, clear=True):
+        stderr = io.StringIO()
+        with patch.dict("os.environ", {}, clear=True), contextlib.redirect_stderr(stderr):
             with self.assertRaisesRegex(RuntimeError, "/keys"):
                 mr0.simulate(str(SEQ), backend="mcp")
+        self.assertIn(f"{BASE}/keys", stderr.getvalue())
 
     def test_tool_error(self):
         def failing_post(*args, **kwargs):
