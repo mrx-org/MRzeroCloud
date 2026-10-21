@@ -1,6 +1,6 @@
 # MRzeroCloud
 
-**Version 1.0.4**
+**Version 1.0.5**
 
 Cloud MRI simulation with an [MRzeroCore](https://mrsources.github.io/MRzero-Core/)-compatible Python API. `mr0.simulate()` talks to the **modal** HTTP backend (same as MATLAB).
 
@@ -83,6 +83,39 @@ MATLAB package. The gateway reslices bifti phantoms server-side and requires bot
 `res` and `affine` on every job, so override them together via
 `config["phantom_bifti"]`, `config["res"]`, and `config["affine"]`.
 
+## MCP backend
+
+`backend="mcp"` simulates through the [MRX MCP gateway](https://github.com/mrx-org/mcp-gateway) instead:
+rapisim for the signal and trajex for the k-space trajectory. Authenticate with a personal
+API key. Create it at <https://mrx-org--mcp-gateway-func.modal.run/keys> (GitHub login).
+The key acts as your GitHub user, so uploads land in your files.
+
+```python
+import MRzeroCloud as mr0
+
+mr0.api.configure(mcp_token="mrx_...")   # or set MRX_API_KEY
+
+signal, ktraj = mr0.simulate("gre.seq", backend="mcp", min_mag=1e-4)
+
+# or select the backend through the config
+config = mr0.api.default_mcp_config()
+config["phantom_bifti"] = "endres-bifti_demo-001/subj42-3T.json"   # collection/file_name
+config["res"] = [64, 64, 1]                                       # optional, together with
+config["affine"] = [[3.4375, 0, 0, -110], [0, 3.4375, 0, -110], [0, 0, 8, 0]]  # affine (mm)
+signal, ktraj = mr0.simulate("gre.seq", config=config)
+```
+
+- Phantoms come from the bifti registry, given as `collection/file_name`, or as the sha256
+  of a bifti zip already in your files. Without `res`/`affine` the phantom's own grid is used.
+  With them, the client rewrites the bifti's `reslice_to`, uploads the result and simulates
+  on that grid. The upload is cached per process.
+- `min_mag` is the precision knob for rapisim and trajex. `accuracy`, `worker` and `use_gpu`
+  do not apply. trajex simulates one voxel with `t1`/`t2` (default 1 s / 0.1 s) to find the
+  trajectory.
+- `config["sampler"]` (`direct`, `fft`, `fft_modulated`) and `config["kernel_size"]` go to rapisim.
+- The trajectory is `(N, 4)`: kx, ky, kz in 1/m, plus t in s.
+- No progress or abort yet.
+
 ## Protocol mode
 
 Generated protocol artifacts can register AnyField metadata:
@@ -127,6 +160,13 @@ See [MRzerocloud_m](../MRzerocloud_m) for a MATLAB package with the same modal H
 | Recon | `mr0.reco_adjoint` | `mr0.reco_adjoint` (same API); `mr0.reco_pynufft` for NUFFT |
 
 ## Release notes
+
+### 1.0.5
+
+- New `backend="mcp"` for the MRX MCP gateway (rapisim + trajex). It authenticates with an
+  `mrx_` API key (`configure(mcp_token=…)` or `MRX_API_KEY`) and takes its defaults from
+  `mr0.api.default_mcp_config()`.
+- `simulate()` also picks the backend from `config["backend"]`.
 
 ### 1.0.4
 

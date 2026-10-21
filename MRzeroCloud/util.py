@@ -9,6 +9,7 @@ import numpy as np
 
 from .api import pipeline
 from .api._config import optional_config
+from .api._mcp_http import run_mcp
 from .api._tools import abort_context, stop_simulation
 from .simulation import SimulationJob
 
@@ -28,24 +29,29 @@ def _simulate_impl(
     exact_trajectories: bool | None = None,
     worker: str | None = None,
 ):
-    del phantom, t1, t2, min_mag
+    del phantom
     config = config if config is not None else optional_config()
 
     if backend is None:
-        backend = "modal"
-    if str(backend).lower() != "modal":
-        raise ValueError(
-            f"Unknown simulation backend {backend!r}; only 'modal' is supported"
+        backend = (config or {}).get("backend") or "modal"
+    backend = str(backend).lower()
+    if backend == "modal":
+        kdata, ktraj = pipeline.run(
+            seq,
+            config=config,
+            accuracy=accuracy,
+            use_gpu=use_gpu,
+            exact_trajectories=exact_trajectories,
+            worker=worker,
         )
-
-    kdata, ktraj = pipeline.run(
-        seq,
-        config=config,
-        accuracy=accuracy,
-        use_gpu=use_gpu,
-        exact_trajectories=exact_trajectories,
-        worker=worker,
-    )
+    elif backend == "mcp":
+        # rapisim + trajex: ``min_mag`` is the precision knob, ``accuracy`` and
+        # the worker tiers do not apply.
+        kdata, ktraj = run_mcp(seq, config=config, min_mag=min_mag, t1=t1, t2=t2)
+    else:
+        raise ValueError(
+            f"Unknown simulation backend {backend!r}; use 'modal' or 'mcp'"
+        )
 
     if noise_level:
         noise = noise_level * (
@@ -84,7 +90,12 @@ class _SimulateAPI:
             ``min_emitted_signal`` and ``min_latent_signal``. Default ``1e-3``.
             Prepass stays ``min_state_mag=1e-5`` and ``max_state_count=2000``.
         backend:
-            Only ``"modal"`` is supported (the default).
+            ``"modal"`` (the default, or ``config["backend"]``) or ``"mcp"``
+            (MRX MCP gateway: rapisim signal, trajex k-space; needs an MRX API
+            key, see :func:`MRzeroCloud.api.configure`).
+        min_mag, t1, t2:
+            ``mcp`` only: ``min_mag`` drops weak states in rapisim and trajex
+            (replaces ``accuracy``); trajex simulates one voxel with ``t1``/``t2``.
         worker:
             Modal worker tier (``cpu``, ``t4``, ``a10g``, ``a100``).
         use_gpu:
