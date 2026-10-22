@@ -1,17 +1,21 @@
-"""Modal HTTP endpoint and progress / abort helpers."""
+"""Backend endpoints and progress / abort helpers."""
 
 from __future__ import annotations
 
 import contextvars
+import os
+import sys
 import threading
 from contextlib import contextmanager
 from typing import Callable, Iterator
 
 DEFAULT_URLS = {
     "modal": "https://mzaiss--tool-mr0sim-modal-http-gateway.modal.run",
+    "mcp": "https://mrx-org--mcp-gateway-func.modal.run",
 }
 
 _urls = dict(DEFAULT_URLS)
+_mcp_token: str | None = None
 _on_message: Callable[[str], bool] | None = None
 _verbose = True
 _progress_line_width = 0
@@ -25,16 +29,21 @@ def configure(
     urls: dict[str, str] | None = None,
     on_message: Callable[[str], bool] | None = None,
     verbose: bool | None = None,
+    mcp_token: str | None = None,
 ) -> None:
-    """Override the modal URL and progress reporting.
+    """Override backend URLs, the MRX API key and progress reporting.
 
     Only explicitly supplied arguments are applied; url overrides accumulate
     across calls. Use ``urls={"modal": "https://…"}`` to point at a different
-    tool-mr0sim-modal_http endpoint.
+    tool-mr0sim-modal_http endpoint, ``urls={"mcp": "https://…"}`` for a
+    different MRX MCP gateway. ``mcp_token`` is a personal ``mrx_…`` API key
+    (default: the ``MRX_API_KEY`` environment variable).
     """
-    global _urls, _on_message, _verbose
+    global _urls, _on_message, _verbose, _mcp_token
     if urls:
         _urls = {**_urls, **urls}
+    if mcp_token is not None:
+        _mcp_token = mcp_token
     if on_message is not None:
         _on_message = on_message
     if verbose is not None:
@@ -42,9 +51,10 @@ def configure(
 
 
 def reset_configuration() -> None:
-    """Restore the built-in URL, progress callback, and verbosity."""
-    global _urls, _on_message, _verbose
+    """Restore the built-in URLs, API key, progress callback, and verbosity."""
+    global _urls, _on_message, _verbose, _mcp_token
     _urls = dict(DEFAULT_URLS)
+    _mcp_token = None
     _on_message = None
     _verbose = True
 
@@ -92,3 +102,22 @@ def _resolve_on_message() -> Callable[[str], bool]:
 def get_modal_url() -> str:
     """Base URL for the modal HTTP simulation backend."""
     return _urls["modal"]
+
+
+def get_mcp_url() -> str:
+    """Base URL for the MRX MCP gateway (``/mcp`` and ``/files`` live below it)."""
+    return _urls["mcp"]
+
+
+def get_mcp_token() -> str:
+    """MRX API key from :func:`configure` or ``MRX_API_KEY``."""
+    token = _mcp_token or os.environ.get("MRX_API_KEY")
+    if not token:
+        print(
+            "MRzeroCloud: the mcp backend needs an MRX API key.\n"
+            f"  Create one at {get_mcp_url()}/keys, then set MRX_API_KEY\n"
+            "  or call mr0.api.configure(mcp_token='mrx_...').",
+            file=sys.stderr,
+        )
+        raise RuntimeError(f"no MRX API key (create one at {get_mcp_url()}/keys)")
+    return token

@@ -7,6 +7,7 @@ from ._config import (
     DEFAULT_MODAL_WORKER,
     backend_from_config,
     default_config,
+    default_mcp_config,
     default_modal_config,
     default_phantom_res,
     load_config,
@@ -26,7 +27,7 @@ from ._pulseq import (
     recon_matrix_from_summary,
     seq_definitions,
 )
-from ._tools import configure, get_modal_url, reset_configuration
+from ._tools import configure, get_mcp_url, get_modal_url, reset_configuration
 
 __all__ = [
     "DEFAULT_BACKEND",
@@ -37,8 +38,10 @@ __all__ = [
     "check_pulseq_version",
     "configure",
     "reset_configuration",
+    "get_mcp_url",
     "get_modal_url",
     "default_config",
+    "default_mcp_config",
     "default_modal_config",
     "default_phantom_res",
     "load_config",

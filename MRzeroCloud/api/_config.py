@@ -27,6 +27,10 @@ _DEFAULT_MODAL_AFFINE = [
 ]
 _DEFAULT_MODAL_WORKER = "t4"
 
+# MCP defaults: a bifti registry phantom as ``collection/file_name``. Without
+# ``res``/``affine`` it is simulated on its own ``reslice_to`` grid.
+_DEFAULT_MCP_PHANTOM = "endres-bifti_demo-001/subj42-3T.json"
+
 DEFAULT_BACKEND = _DEFAULT_BACKEND
 DEFAULT_MODAL_WORKER = _DEFAULT_MODAL_WORKER
 
@@ -87,6 +91,23 @@ def default_modal_config(seq=None) -> dict[str, Any]:
         "backend": "modal",
         "worker": _DEFAULT_MODAL_WORKER,
         "exact_trajectories": True,
+        "recon_matrix": _seq_matrix(seq) or list(_DEFAULT_PHANTOM_MATRIX),
+    }
+
+
+def default_mcp_config(seq=None) -> dict[str, Any]:
+    """Defaults for the ``mcp`` backend (MRX MCP gateway: rapisim + trajex).
+
+    ``phantom_bifti`` is a registry ``collection/file_name`` or the sha256 of a
+    bifti zip already in the gateway's files. Add ``res`` and ``affine``
+    (together) to simulate on another grid; ``sampler`` and ``kernel_size``
+    are passed on to rapisim.
+    """
+    return {
+        "phantom_bifti": _DEFAULT_MCP_PHANTOM,
+        "backend": "mcp",
+        "sampler": "direct",
+        "kernel_size": 4,
         "recon_matrix": _seq_matrix(seq) or list(_DEFAULT_PHANTOM_MATRIX),
     }
 
